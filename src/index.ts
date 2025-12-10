@@ -64,6 +64,9 @@ experimental-features = nix-command flakes`;
     extraConf,
   ]);
 
+  // Add Nix to PATH for subsequent steps
+  const nixProfilePath = '/nix/var/nix/profiles/default/bin';
+  core.addPath(nixProfilePath);
   core.info('Nix installed successfully');
 }
 
