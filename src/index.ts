@@ -27,7 +27,7 @@ function getInputs(): ActionInputs {
       'redistributable.torch29-cxx11-cu126-x86_64-linux',
     artifactName: core.getInput('artifact-name') || 'kernel',
     uploadArtifact: core.getInput('upload-artifact') !== 'false',
-    cachixName: core.getInput('cachix-name') || '',
+    cachixName: core.getInput('cachix-name') || 'huggingface',
     cachixAuthToken: core.getInput('cachix-auth-token') || '',
     nixMaxJobs: core.getInput('nix-max-jobs') || '4',
     nixCores: core.getInput('nix-cores') || '12',
