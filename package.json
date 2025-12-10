@@ -1,0 +1,32 @@
+{
+  "name": "publish-to-the-kernel-hub",
+  "version": "1.0.0",
+  "description": "A GitHub Action to build kernels using Nix and publish them to the Hugging Face Kernel Hub.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && ncc build lib/index.js -o dist",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "keywords": [
+    "github-action",
+    "huggingface",
+    "kernel",
+    "nix"
+  ],
+  "author": "Hugging Face",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "@vercel/ncc": "^0.38.4",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@actions/artifact": "^4.0.0",
+    "@actions/core": "^2.0.0",
+    "@actions/exec": "^2.0.0",
+    "@actions/glob": "^0.5.0"
+  }
+}

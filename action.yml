@@ -1,0 +1,63 @@
+name: 'publish-to-the-kernel-hub'
+description: 'Build a kernel using Nix and publish to Hugging Face Kernel Hub'
+author: 'Hugging Face'
+
+branding:
+  icon: 'package'
+  color: 'yellow'
+
+inputs:
+  kernel-path:
+    description: 'Path to the kernel directory (default: repo root)'
+    required: false
+    default: '.'
+  build-target:
+    description: 'Nix build target (e.g., redistributable.torch29-cxx11-cu126-x86_64-linux)'
+    required: false
+    default: 'redistributable.torch29-cxx11-cu126-x86_64-linux'
+  artifact-name:
+    description: 'Name for the uploaded artifact'
+    required: false
+    default: 'kernel'
+  upload-artifact:
+    description: 'Whether to upload the built kernel as an artifact'
+    required: false
+    default: 'true'
+  cachix-name:
+    description: 'Cachix cache name for Nix caching'
+    required: false
+    default: ''
+  cachix-auth-token:
+    description: 'Cachix authentication token'
+    required: false
+    default: ''
+  nix-max-jobs:
+    description: 'Maximum number of parallel Nix build jobs'
+    required: false
+    default: '4'
+  nix-cores:
+    description: 'Number of cores per Nix build job'
+    required: false
+    default: '12'
+  hf-token:
+    description: 'Hugging Face token for publishing to Kernel Hub'
+    required: false
+    default: ''
+  hf-repo:
+    description: 'Hugging Face repository to publish to (e.g., username/kernel-name)'
+    required: false
+    default: ''
+  publish:
+    description: 'Whether to publish to Hugging Face Kernel Hub'
+    required: false
+    default: 'false'
+
+outputs:
+  kernel-path:
+    description: 'Path to the built kernel'
+  artifact-name:
+    description: 'Name of the uploaded artifact'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

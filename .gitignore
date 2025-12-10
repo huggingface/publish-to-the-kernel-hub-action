@@ -1,0 +1,13 @@
+node_modules/
+lib/
+*.log
+.DS_Store
+.env
+*.tgz
+coverage/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+dist
