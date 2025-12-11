@@ -85,6 +85,10 @@ async function setupCachix(name: string, authToken: string): Promise<void> {
     'https://cachix.org/api/v1/install',
   ]);
 
+  // Add user profile to PATH where nix-env installs packages
+  const nixUserProfilePath = `${process.env.HOME}/.nix-profile/bin`;
+  core.addPath(nixUserProfilePath);
+
   if (authToken) {
     await exec.exec('cachix', ['authtoken', authToken]);
   }
