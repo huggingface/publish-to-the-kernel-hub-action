@@ -43,7 +43,8 @@ async function installNix(maxJobs: string, cores: string): Promise<void> {
   const extraConf = `max-jobs = ${maxJobs}
 cores = ${cores}
 sandbox-fallback = false
-experimental-features = nix-command flakes`;
+experimental-features = nix-command flakes
+trusted-users = root runner`;
 
   await exec.exec('curl', [
     '--proto',
