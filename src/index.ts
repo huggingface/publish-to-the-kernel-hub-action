@@ -8,43 +8,82 @@ import * as path from 'path';
 interface ActionInputs {
   kernelPath: string;
   buildTarget: string;
+  nixCommand: 'build' | 'run';
+  verbose: boolean;
   artifactName: string;
   uploadArtifact: boolean;
   cachixName: string;
   cachixAuthToken: string;
   nixMaxJobs: string;
   nixCores: string;
+  sandboxMode: string;
+  extraNixConf: string;
   hfToken: string;
   hfRepo: string;
   publish: boolean;
 }
 
 function getInputs(): ActionInputs {
+  const nixCommand = core.getInput('nix-command') || 'build';
+  if (nixCommand !== 'build' && nixCommand !== 'run') {
+    throw new Error(`Invalid nix-command: ${nixCommand}. Must be 'build' or 'run'.`);
+  }
+
   return {
     kernelPath: core.getInput('kernel-path') || '.',
-    buildTarget:
-      core.getInput('build-target') ||
-      'redistributable.torch29-cxx11-cu126-x86_64-linux',
+    buildTarget: core.getInput('build-target') || 'ci',
+    nixCommand,
+    verbose: core.getInput('verbose') !== 'false',
     artifactName: core.getInput('artifact-name') || 'kernel',
     uploadArtifact: core.getInput('upload-artifact') !== 'false',
     cachixName: core.getInput('cachix-name') || 'huggingface',
     cachixAuthToken: core.getInput('cachix-auth-token') || '',
     nixMaxJobs: core.getInput('nix-max-jobs') || '4',
     nixCores: core.getInput('nix-cores') || '12',
+    sandboxMode: core.getInput('sandbox-mode') || 'fallback',
+    extraNixConf: core.getInput('extra-nix-conf') || '',
     hfToken: core.getInput('hf-token') || '',
     hfRepo: core.getInput('hf-repo') || '',
     publish: core.getInput('publish') === 'true',
   };
 }
 
-async function installNix(maxJobs: string, cores: string): Promise<void> {
+async function installNix(
+  maxJobs: string,
+  cores: string,
+  sandboxMode: string,
+  extraNixConf: string
+): Promise<void> {
   core.info('Installing Nix...');
 
-  const extraConf = `max-jobs = ${maxJobs}
+  // Build sandbox configuration based on mode
+  let sandboxConf: string;
+  switch (sandboxMode) {
+    case 'relaxed':
+      sandboxConf = 'sandbox = relaxed';
+      break;
+    case 'true':
+      sandboxConf = 'sandbox = true';
+      break;
+    case 'false':
+      sandboxConf = 'sandbox = false';
+      break;
+    case 'fallback':
+    default:
+      sandboxConf = 'sandbox-fallback = false';
+      break;
+  }
+
+  let extraConf = `max-jobs = ${maxJobs}
 cores = ${cores}
-sandbox-fallback = false
+${sandboxConf}
 experimental-features = nix-command flakes
 trusted-users = root runner`;
+
+  // Append any additional configuration
+  if (extraNixConf) {
+    extraConf += `\n${extraNixConf}`;
+  }
 
   await exec.exec('curl', [
     '--proto',
@@ -101,20 +140,33 @@ async function setupCachix(name: string, authToken: string): Promise<void> {
 
 async function buildKernel(
   kernelPath: string,
-  buildTarget: string
-): Promise<string> {
-  core.info(`Building kernel at ${kernelPath} with target ${buildTarget}`);
+  buildTarget: string,
+  nixCommand: 'build' | 'run',
+  verbose: boolean
+): Promise<string | null> {
+  core.info(`${nixCommand === 'build' ? 'Building' : 'Running'} kernel at ${kernelPath} with target ${buildTarget}`);
 
   const absoluteKernelPath = path.resolve(kernelPath);
 
-  await exec.exec('nix', ['build', `.#${buildTarget}`], {
+  const args: string[] = [nixCommand];
+  if (verbose) {
+    args.push('-L');
+  }
+  args.push(`.#${buildTarget}`);
+
+  await exec.exec('nix', args, {
     cwd: absoluteKernelPath,
   });
 
   const resultPath = path.join(absoluteKernelPath, 'result');
 
+  // For 'nix run', the result directory may not exist (e.g., build-and-upload handles upload itself)
   if (!fs.existsSync(resultPath)) {
-    throw new Error(`Build result not found at ${resultPath}`);
+    if (nixCommand === 'build') {
+      throw new Error(`Build result not found at ${resultPath}`);
+    }
+    core.info('No result directory found (expected for nix run commands that handle their own output)');
+    return null;
   }
 
   core.info('Kernel built successfully');
@@ -182,16 +234,35 @@ async function run(): Promise<void> {
     const inputs = getInputs();
 
     core.startGroup('Install Nix');
-    await installNix(inputs.nixMaxJobs, inputs.nixCores);
+    await installNix(
+      inputs.nixMaxJobs,
+      inputs.nixCores,
+      inputs.sandboxMode,
+      inputs.extraNixConf
+    );
     core.endGroup();
 
     core.startGroup('Setup Cachix');
     await setupCachix(inputs.cachixName, inputs.cachixAuthToken);
     core.endGroup();
 
-    core.startGroup('Build Kernel');
-    const resultPath = await buildKernel(inputs.kernelPath, inputs.buildTarget);
+    core.startGroup(inputs.nixCommand === 'build' ? 'Build Kernel' : 'Run Kernel');
+    const resultPath = await buildKernel(
+      inputs.kernelPath,
+      inputs.buildTarget,
+      inputs.nixCommand,
+      inputs.verbose
+    );
     core.endGroup();
+
+    // If no result path (e.g., nix run that handles its own output), skip copy/upload/publish
+    if (resultPath === null) {
+      core.info('No result to copy/upload (nix run command handled output)');
+      core.setOutput('kernel-path', '');
+      core.setOutput('artifact-name', inputs.artifactName);
+      core.info('Action completed successfully!');
+      return;
+    }
 
     core.startGroup('Copy Kernel');
     const kernelOutputPath = await copyKernel(resultPath, inputs.artifactName);

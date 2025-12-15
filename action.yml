@@ -12,9 +12,17 @@ inputs:
     required: false
     default: '.'
   build-target:
-    description: 'Nix build target (e.g., redistributable.torch29-cxx11-cu126-x86_64-linux)'
+    description: 'Nix build target (e.g., ci, build-and-upload, redistributable.torch29-cxx11-cu126-x86_64-linux)'
     required: false
-    default: 'redistributable.torch29-cxx11-cu126-x86_64-linux'
+    default: 'ci'
+  nix-command:
+    description: 'Nix command to use (build or run)'
+    required: false
+    default: 'build'
+  verbose:
+    description: 'Enable verbose Nix output (-L flag)'
+    required: false
+    default: 'true'
   artifact-name:
     description: 'Name for the uploaded artifact'
     required: false
@@ -39,6 +47,14 @@ inputs:
     description: 'Number of cores per Nix build job'
     required: false
     default: '12'
+  sandbox-mode:
+    description: 'Nix sandbox mode (fallback, relaxed, true, false)'
+    required: false
+    default: 'fallback'
+  extra-nix-conf:
+    description: 'Additional Nix configuration lines (newline-separated)'
+    required: false
+    default: ''
   hf-token:
     description: 'Hugging Face token for publishing to Kernel Hub'
     required: false
