@@ -142,7 +142,8 @@ async function buildKernel(
   kernelPath: string,
   buildTarget: string,
   nixCommand: 'build' | 'run',
-  verbose: boolean
+  verbose: boolean,
+  hfRepo: string
 ): Promise<string | null> {
   core.info(`${nixCommand === 'build' ? 'Building' : 'Running'} kernel at ${kernelPath} with target ${buildTarget}`);
 
@@ -154,8 +155,16 @@ async function buildKernel(
   }
   args.push(`.#${buildTarget}`);
 
+  // Pass environment variables including HF_REPO for upload targets
+  const env: Record<string, string> = { ...process.env as Record<string, string> };
+  if (hfRepo) {
+    env.HF_REPO = hfRepo;
+    core.info(`Setting HF_REPO=${hfRepo}`);
+  }
+
   await exec.exec('nix', args, {
     cwd: absoluteKernelPath,
+    env,
   });
 
   const resultPath = path.join(absoluteKernelPath, 'result');
@@ -229,9 +238,33 @@ print("Successfully published to ${hfRepo}")
   core.info('Published to Hugging Face successfully');
 }
 
+async function uploadWithKernelsCli(
+  kernelPath: string,
+  hfRepo: string
+): Promise<void> {
+  core.info(`Uploading to Kernel Hub: ${hfRepo}`);
+
+  const absoluteKernelPath = path.resolve(kernelPath);
+
+  await exec.exec('nix', ['run', '.#kernels', '--', 'upload', '--repo_id', hfRepo, '.'], {
+    cwd: absoluteKernelPath,
+  });
+
+  core.info(`Kernel uploaded to https://hf.co/${hfRepo}`);
+}
+
 async function run(): Promise<void> {
   try {
     const inputs = getInputs();
+
+    // If hf-repo is set and build-and-upload is requested, use build-and-copy + manual upload
+    // because build-and-upload hardcodes the repo to kernels-community
+    let buildTarget = inputs.buildTarget;
+    const needsManualUpload = inputs.hfRepo && inputs.buildTarget === 'build-and-upload';
+    if (needsManualUpload) {
+      core.info(`hf-repo is set to ${inputs.hfRepo}, using build-and-copy + manual upload`);
+      buildTarget = 'build-and-copy';
+    }
 
     core.startGroup('Install Nix');
     await installNix(
@@ -249,11 +282,23 @@ async function run(): Promise<void> {
     core.startGroup(inputs.nixCommand === 'build' ? 'Build Kernel' : 'Run Kernel');
     const resultPath = await buildKernel(
       inputs.kernelPath,
-      inputs.buildTarget,
+      buildTarget,
       inputs.nixCommand,
-      inputs.verbose
+      inputs.verbose,
+      inputs.hfRepo
     );
     core.endGroup();
+
+    // If manual upload is needed, do it now
+    if (needsManualUpload) {
+      core.startGroup('Upload to Kernel Hub');
+      await uploadWithKernelsCli(inputs.kernelPath, inputs.hfRepo);
+      core.endGroup();
+      core.setOutput('kernel-path', '');
+      core.setOutput('artifact-name', inputs.artifactName);
+      core.info('Action completed successfully!');
+      return;
+    }
 
     // If no result path (e.g., nix run that handles its own output), skip copy/upload/publish
     if (resultPath === null) {
