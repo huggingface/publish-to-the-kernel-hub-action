@@ -246,7 +246,7 @@ async function uploadWithKernelsCli(
 
   const absoluteKernelPath = path.resolve(kernelPath);
 
-  await exec.exec('nix', ['run', '.#kernels', '--', 'upload', '--repo_id', hfRepo, '.'], {
+  await exec.exec('nix', ['run', '.#kernels', '--', 'upload', '--repo-id', hfRepo, '.'], {
     cwd: absoluteKernelPath,
   });
 
